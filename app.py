@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import warnings
 
 # Đọc dữ liệu từ file CSV và đặt tần suất cho chỉ số thời gian
-df = pd.read_csv('\data-dak-to_2003-2011.csv', parse_dates=['Time'])
+df = pd.read_csv('data-dak-to_2003-2011.csv', parse_dates=['Time'])
 df.set_index('Time', inplace=True)
 
 # Kiểm tra và xử lý các giá trị NaN và vô hạn
