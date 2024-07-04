@@ -6,8 +6,8 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 import matplotlib.pyplot as plt
 import warnings
 
-# Đọc dữ liệu
-df = pd.read_csv('data-dak-to_2003-2009.csv', parse_dates=['Time'])
+# Đọc dữ liệu từ file CSV và đặt tần suất cho chỉ số thời gian
+df = pd.read_csv('\data-dak-to_2003-2011.csv', parse_dates=['Time'])
 df.set_index('Time', inplace=True)
 
 # Kiểm tra và xử lý các giá trị NaN và vô hạn
@@ -39,44 +39,46 @@ else:
     train_endog, test_endog = train_endog[:train_size], train_endog[train_size:]
     train_exog, test_exog = train_exog[:train_size], train_exog[train_size:]
 
-    # Xây dựng và huấn luyện mô hình SARIMAX
+    # Xác định các tham số của mô hình SARIMA
+    p, d, q = 4, 1, 5
+    P, D, Q, s = 2, 1, 2, 6  # Thiết lập chu kỳ mùa vụ là 6
+
+    # Xây dựng mô hình SARIMAX trên tập huấn luyện
     warnings.filterwarnings("ignore")
-    model = sm.tsa.SARIMAX(train_endog, exog=train_exog, order=(2, 1, 1), seasonal_order=(1, 1, 6, 6))
-    model_fit = model.fit(disp=False)
+    model = sm.tsa.SARIMAX(train_endog, exog=train_exog, order=(p, d, q), seasonal_order=(P, D, Q, s))
+    results = model.fit()
 
-    # Dự báo trên tập kiểm tra
-    forecast = model_fit.forecast(steps=len(test_endog), exog=test_exog)
+    # Dự đoán trên tập kiểm tra
+    predictions = results.predict(start=len(train_endog), end=len(train_endog) + len(test_endog) - 1, exog=test_exog)
 
-    # Đánh giá mô hình
-    mse = mean_squared_error(test_endog, forecast)
-    mae = mean_absolute_error(test_endog, forecast)
+    # Đánh giá độ chính xác của mô hình
+    mse = mean_squared_error(test_endog, predictions)
+    mae = mean_absolute_error(test_endog, predictions)
     st.write(f'Mean Squared Error: {mse}')
     st.write(f'Mean Absolute Error: {mae}')
 
-    # Vẽ biểu đồ kết quả
-    plt.figure(figsize=(12, 6))
-    plt.plot(train_endog, label='Train')
-    plt.plot(test_endog, label='Test')
-    plt.plot(test_endog.index, forecast, label='Forecast')
-    plt.legend()
-    st.pyplot(plt)
+    # Vẽ biểu đồ so sánh giá trị thực tế và giá trị dự đoán
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(train_endog.index, train_endog, label='Train')
+    ax.plot(test_endog.index, test_endog, label='Test')
+    ax.plot(test_endog.index, predictions, label='Predictions', color='red')
+    ax.legend()
+    st.pyplot(fig)
 
     # Thêm tính năng dự đoán cho khung giờ tiếp theo
     st.subheader('Dự báo cho khung giờ tiếp theo')
-    forecast_steps = st.number_input('Nhập số khung giờ cần dự đoán (mỗi khung giờ cách nhau 6 tiếng):', min_value=1, max_value=24, value=1)
-    
-    if st.button('Dự đoán'):
-        future_forecast = model_fit.forecast(steps=forecast_steps, exog=test_exog[-forecast_steps:])
-        future_dates = pd.date_range(start=test_endog.index[-1], periods=forecast_steps + 1, freq='6H')[1:]
-        
-        forecast_df = pd.DataFrame({'Dự báo': future_forecast}, index=future_dates)
-        st.write(forecast_df)
+    forecast_steps = st.number_input('Nhập số khung giờ cần dự đoán (mỗi khung giờ cách nhau 6 tiếng):', min_value=1, max_value=2000, value=1)
 
-        # Vẽ biểu đồ dự báo
-        plt.figure(figsize=(12, 6))
-        plt.plot(train_endog, label='Train')
-        plt.plot(test_endog, label='Test')
-        plt.plot(test_endog.index, forecast, label='Forecast')
-        plt.plot(future_dates, future_forecast, label='Future Forecast', linestyle='--')
-        plt.legend()
-        st.pyplot(plt)
+    if st.button('Dự đoán'):
+        future_exog = exog.iloc[-forecast_steps:]  # Sử dụng các giá trị ngoại sinh trong tương lai
+        future_predictions = results.get_forecast(steps=forecast_steps, exog=future_exog)
+        future_index = pd.date_range(start=test_endog.index[-1], periods=forecast_steps + 1, freq='6h')[1:]
+        future_forecast = future_predictions.predicted_mean
+        future_forecast.index = future_index
+
+        # Vẽ biểu đồ dự đoán tương lai
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.plot(endog.index, endog, label='Historical Data')
+        ax.plot(future_forecast.index, future_forecast, label='Future Predictions', color='red')
+        ax.legend()
+        st.pyplot(fig)
